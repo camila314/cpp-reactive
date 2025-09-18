@@ -4,4 +4,4 @@ project(cpp-reactive VERSION 1.0.0 LANGUAGES CXX)
 add_library(cpp-reactive INTERFACE)
 
 target_include_directories(cpp-reactive INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
-target_compile_features(cpp-reactive INTERFACE cxx_std_11)
+target_compile_features(cpp-reactive INTERFACE cxx_std_20)
