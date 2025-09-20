@@ -91,6 +91,10 @@ namespace cppreactive {
          public:
             Ref(Ref&& r) : m_weak(std::move(r.m_weak)), m_listeners(std::move(r.m_listeners)) {}
             Ref() = default;
+            Ref const& operator=(Ref&& r) {
+                m_weak = std::move(r.m_weak);
+                m_listeners = std::move(r.m_listeners);
+            }
 
             bool isValid() {
                 return m_weak && m_weak->isValid();
