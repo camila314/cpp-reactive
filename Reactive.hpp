@@ -62,11 +62,11 @@ namespace cppreactive {
             }
 
             bool isValid() {
-                return m_weak->isValid();
+                return m_weak && m_weak->isValid();
             }
 
             ~Session() {
-                if (m_weak && isValid()) {
+                if (isValid()) {
                     m_weak->m_reactive.m_inCtx = false;
                     m_weak->m_reactive.removeWeak(m_weak);
 
@@ -127,7 +127,7 @@ namespace cppreactive {
             }
 
             ~Ref() {
-                if (m_weak && isValid()) {
+                if (isValid()) {
                     for (auto const& lis : m_listeners)
                         m_weak->m_reactive.unreact(lis);
                     m_weak->m_reactive.removeWeak(m_weak);
