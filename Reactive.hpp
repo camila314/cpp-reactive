@@ -3,7 +3,7 @@
 #include <iostream>
 #include <list>
 #include <vector>
-#include <set>
+#include <unordered_set>
 #include <optional>
 #include <functional>
 #include <memory>
@@ -36,7 +36,7 @@ namespace cppreactive {
             m_refs.erase(it, m_refs.end());
         }
      public:
-        using ListenerPtr = typename decltype(m_listeners)::iterator;
+        using ListenerIter = typename decltype(m_listeners)::iterator;
 
         /// Session allows you to obtain a mutable reference to the value while ensuring it properly triggers reactions 
         class Session {
@@ -62,7 +62,7 @@ namespace cppreactive {
             }
 
             bool isValid() {
-                return m_weak && m_weak->isValid();
+                return m_weak->isValid();
             }
 
             ~Session() {
@@ -78,26 +78,32 @@ namespace cppreactive {
 
         /// Ref is a way to scope reactions and obtain a non-owning reference to a Reactive class that guarantees memory safety
         class Ref {
-            std::set<ListenerPtr> m_listeners;
+            struct _list_iterator_hash {
+                size_t operator()(ListenerIter const& i) const {
+                    return std::hash<decltype(&*i)>()(&*i);
+                }
+            };
+
+            std::unordered_set<ListenerIter, _list_iterator_hash> m_listeners;
             std::unique_ptr<Weak> m_weak;
             Ref(std::unique_ptr<Weak>&& w) : m_weak(std::move(w)) {}
-
             friend class Reactive;
          public:
             Ref(Ref&& r) : m_weak(std::move(r.m_weak)), m_listeners(std::move(r.m_listeners)) {}
             Ref() = default;
 
             bool isValid() {
-                return m_weak->isValid();
+                return m_weak && m_weak->isValid();
             }
 
-            ListenerPtr react(std::function<void(T const&)> fn) {
-                if (!isValid()) return nullptr;
+            std::optional<ListenerIter> react(std::function<void(T const&)> fn) {
+                if (!isValid()) return {};
                 auto lis = m_weak->m_reactive.react(fn);
-                return m_listeners.insert(lis).first;
+                m_listeners.insert(lis);
+                return lis;
             }
 
-            void unreact(ListenerPtr it) {
+            void unreact(ListenerIter it) {
                 if (!isValid()) return;
                 m_weak->m_reactive.unreact(it);
                 m_listeners.erase(it);
@@ -121,7 +127,7 @@ namespace cppreactive {
             }
 
             ~Ref() {
-                if (isValid()) {
+                if (m_weak && isValid()) {
                     for (auto const& lis : m_listeners)
                         m_weak->m_reactive.unreact(lis);
                     m_weak->m_reactive.removeWeak(m_weak);
@@ -175,11 +181,11 @@ namespace cppreactive {
         }
         T const& operator*() const requires (!std::is_pointer_v<T>) { return m_value; }
 
-        ListenerPtr react(std::function<void(T const&)> fn) {
+        ListenerIter react(std::function<void(T const&)> fn) {
             m_listeners.push_back(fn);
             return --m_listeners.end();
         }
-        void unreact(ListenerPtr it) {
+        void unreact(ListenerIter it) {
             m_listeners.erase(it);
         }
 
