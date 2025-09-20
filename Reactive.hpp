@@ -62,7 +62,7 @@ namespace cppreactive {
             }
 
             bool isValid() {
-                return m_weak->isValid();
+                return m_weak && m_weak->isValid();
             }
 
             ~Session() {
@@ -81,9 +81,11 @@ namespace cppreactive {
             std::set<ListenerPtr> m_listeners;
             std::unique_ptr<Weak> m_weak;
             Ref(std::unique_ptr<Weak>&& w) : m_weak(std::move(w)) {}
+
             friend class Reactive;
          public:
             Ref(Ref&& r) : m_weak(std::move(r.m_weak)), m_listeners(std::move(r.m_listeners)) {}
+            Ref() = default;
 
             bool isValid() {
                 return m_weak->isValid();
@@ -119,7 +121,7 @@ namespace cppreactive {
             }
 
             ~Ref() {
-                if (m_weak && isValid()) {
+                if (isValid()) {
                     for (auto const& lis : m_listeners)
                         m_weak->m_reactive.unreact(lis);
                     m_weak->m_reactive.removeWeak(m_weak);
