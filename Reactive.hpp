@@ -162,10 +162,16 @@ namespace cppreactive {
             return *this;
         }
         operator T() const { return m_value; }
-        T const* operator->() const {
+
+        std::remove_pointer_t<T> const* operator->() const requires (std::is_pointer_v<T>) {
+            return m_value;
+        }
+        std::remove_pointer_t<T> const& operator*() const requires (std::is_pointer_v<T>) { return *m_value; }
+
+        T const* operator->() const requires (!std::is_pointer_v<T>) {
             return &m_value;
         }
-        T const& operator*() const { return m_value; }
+        T const& operator*() const requires (!std::is_pointer_v<T>) { return m_value; }
 
         ListenerPtr react(std::function<void(T const&)> fn) {
             m_listeners.push_back(fn);
