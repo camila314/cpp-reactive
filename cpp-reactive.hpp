@@ -188,7 +188,7 @@ namespace cppreactive {
 
             for (auto& ref : m_refs) {
                 ref->m_reactive = nullptr;
-                ref->m_mutex->unlock();
+                ref->m_mutex.unlock();
             }
         }
 
