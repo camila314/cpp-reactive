@@ -115,6 +115,8 @@ namespace cppreactive {
 
                 m_weak = std::move(r.m_weak);
                 m_listeners = std::move(r.m_listeners);
+
+                return *this;
             }
 
             std::optional<ListenerIter> react(std::function<void(T const&)> fn) {
@@ -201,18 +203,18 @@ namespace cppreactive {
 
             if (m_contexts.contains(this_id)) {
                 std::cerr << "Attempt to modify value within its own listener!" << std::endl;
+                m_mutex.unlock();
                 return;
             }
             m_contexts.insert(this_id);
-
-            m_value = std::forward<Q>(val);
             auto copy = m_listeners;
             m_mutex.unlock();
 
             for (auto const& fn : copy)
-                fn(std::forward<Q>(val));
+                fn(val);
 
             m_mutex.lock();
+            m_value = std::forward<Q>(val);
             m_contexts.erase(this_id);
             m_mutex.unlock();
         }
@@ -234,24 +236,6 @@ namespace cppreactive {
             return *this;
         }
         operator T() const {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            return m_value;
-        }
-
-        std::remove_pointer_t<T> const* operator->() const requires (std::is_pointer_v<T>) {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            return m_value;
-        }
-        std::remove_pointer_t<T> const& operator*() const requires (std::is_pointer_v<T>) {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            return *m_value;
-        }
-
-        T const* operator->() const requires (!std::is_pointer_v<T>) {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            return &m_value;
-        }
-        T const& operator*() const requires (!std::is_pointer_v<T>) {
             std::lock_guard<std::mutex> lock(m_mutex);
             return m_value;
         }
