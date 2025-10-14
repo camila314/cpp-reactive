@@ -19,19 +19,36 @@ namespace cppreactive {
             Reactive* m_reactive;
             std::mutex m_mutex;
             friend class Reactive;
+
+            struct LockGuard {
+                Reactive* reactive;
+                std::unique_lock<std::mutex> lock;
+                operator bool() const { return reactive != nullptr; }
+                Reactive* operator->() { return reactive; }
+            };
          public:
-            Weak(Reactive& r) : m_reactive(&r) {}
-            auto lock() {
+            Weak(Reactive& r) : m_reactive(&r) {
+                m_reactive->addWeak(this);
+            }
+            Weak(Weak&& w) {
+                std::lock_guard<std::mutex> lock(w.m_mutex);
+                m_reactive = w.m_reactive; 
+                w.m_reactive = nullptr;
+
+                if (m_reactive) {
+                    m_reactive->removeWeak(&w);
+                    m_reactive->addWeak(this);
+                }
+            }
+            LockGuard lock() {
                 std::unique_lock<std::mutex> lock(m_mutex);
-                if (!m_reactive) return false;
+                return LockGuard {m_reactive, std::move(lock)};
+            }
 
-                struct Ret {
-                    Reactive* reactive;
-                    std::unique_lock<std::mutex> lock;
-                    operator bool() const { return reactive != nullptr; }
-                };
-
-                return Ret {m_reactive, std::move(lock)};
+            ~Weak() {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                if (m_reactive)
+                    m_reactive->removeWeak(this);
             }
         };
         friend class Weak;
@@ -39,14 +56,19 @@ namespace cppreactive {
         T m_value;
         std::unordered_set<std::thread::id> m_contexts;
         std::list<std::function<void(T const&)>> m_listeners;
-        std::vector<std::unique_ptr<Weak>> m_refs;
+        std::vector<Weak*> m_weaks;
         mutable std::mutex m_mutex;
 
-        void removeWeak(std::unique_ptr<Weak>& weak) {
+        void removeWeak(Weak* weak) {
             std::lock_guard<std::mutex> lock(m_mutex);
 
-            auto it = std::remove(m_refs.begin(), m_refs.end(), weak);
-            m_refs.erase(it, m_refs.end());
+            auto it = std::remove(m_weaks.begin(), m_weaks.end(), weak);
+            m_weaks.erase(it, m_weaks.end());
+        }
+
+        void addWeak(Weak* weak) {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_weaks.push_back(weak);
         }
      public:
         using ListenerIter = typename decltype(m_listeners)::iterator;
@@ -77,13 +99,14 @@ namespace cppreactive {
             }
 
             ~Session() {
+                if (!m_weak) return;
                 if (auto guard = m_weak->lock()) {
-                    m_weak->m_reactive.m_mutex.lock();
-                    m_weak->m_reactive.m_contexts.erase(std::this_thread::get_id());
-                    m_weak->m_reactive.m_mutex.unlock();
+                    guard->m_mutex.lock();
+                    guard->m_contexts.erase(std::this_thread::get_id());
+                    guard->m_mutex.unlock();
 
-                    m_weak->m_reactive.removeWeak(m_weak);
-                    m_weak->m_reactive.set(m_tempVal);
+                    guard->removeWeak(m_weak);
+                    guard->set(m_tempVal);
                 }
             }
         };
@@ -103,7 +126,7 @@ namespace cppreactive {
             Ref(std::unique_ptr<Weak>&& w) : m_weak(std::move(w)) {}
             friend class Reactive;
          public:
-            Ref(Ref&& r) : m_weak(std::move(r.m_weak)) {
+            Ref(Ref&& r) {
                 std::lock_guard<std::mutex> lock(r.m_mutex);
             
                 m_listeners = std::move(r.m_listeners);
@@ -121,33 +144,41 @@ namespace cppreactive {
 
             std::optional<ListenerIter> react(std::function<void(T const&)> fn) {
                 if (auto guard = m_weak->lock()) {
+                    std::cout << "we are so in\n";
                     std::lock_guard<std::mutex> lock(m_mutex);
-                    auto lis = m_weak->m_reactive.react(fn);
+                    auto lis = guard->react(fn);
                     m_listeners.insert(lis);
                     return lis;
                 }
+                std::cout << "we are so out\n";
                 return {};
             }
 
             void unreact(ListenerIter it) {
                 if (auto guard = m_weak->lock()) {
                     std::lock_guard<std::mutex> lock(m_mutex);
-                    m_weak->m_reactive.unreact(it);
+                    guard->unreact(it);
                     m_listeners.erase(it);
                 }
             }
 
             std::optional<T> get() {
                 if (auto guard = m_weak->lock()) {
-                    return m_weak->m_reactive.get();
+                    return guard->get();
                 }
                 return {};
             }
 
             template <typename Q>
+            Ref& operator=(Q&& val) {
+                set(std::forward<Q>(val));
+                return *this;
+            }
+
+            template <typename Q>
             bool set(Q&& val) {
                 if (auto guard = m_weak->lock()) {
-                    m_weak->m_reactive.set(val);
+                    guard->set(val);
                     return true;
                 }
                 return false;
@@ -155,16 +186,16 @@ namespace cppreactive {
 
             std::optional<Session> session() requires std::is_copy_constructible_v<T> {
                 if (auto guard = m_weak->lock()) {
-                    return m_weak->m_reactive.session();
+                    return guard->session();
                 }
                 return {};
             }
 
             ~Ref() {
+                if (!m_weak) return;
                 if (auto guard = m_weak->lock()) {
                     for (auto const& lis : m_listeners)
-                        m_weak->m_reactive.unreact(lis);
-                    m_weak->m_reactive.removeWeak(m_weak);
+                        guard->unreact(lis);
                 }
             }
         };
@@ -180,17 +211,25 @@ namespace cppreactive {
         Reactive(Reactive&& other) {
             std::lock_guard<std::mutex> lock(m_mutex);
             m_value = std::move(other.m_value);
+            m_contexts = std::move(other.m_contexts);
+            m_listeners = std::move(other.m_listeners);
+            m_weaks = std::move(other.m_weaks);
+
+            other.m_weaks.clear();
+            other.m_listeners.clear();
+
+            for (auto& ref : m_weaks) {
+                std::lock_guard<std::mutex> lock(ref->m_mutex);
+                ref->m_reactive = this;
+            }
         }
 
         ~Reactive() {
             std::lock_guard<std::mutex> lock(m_mutex);
 
-            for (auto& ref : m_refs)
-                ref->m_mutex.lock();
-
-            for (auto& ref : m_refs) {
+            for (auto& ref : m_weaks) {
+                std::lock_guard<std::mutex> lock(ref->m_mutex);
                 ref->m_reactive = nullptr;
-                ref->m_mutex.unlock();
             }
         }
 
