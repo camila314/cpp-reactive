@@ -52,17 +52,20 @@ void ObserverStack::observerAddSignal(std::shared_ptr<Observer> ob, uint64_t id,
 // MUST BE CALLED BY USER
 void ObserverStack::update() {
     m_mutex.lock();
-    auto scheduled = scheduledObs;
-    m_mutex.unlock();
 
-    for (auto& ptr : scheduled) {
-        if (auto lock = ptr.lock()) {
-            run(lock);
+    while (!scheduledObs.empty()) {
+        auto scheduled = scheduledObs;
+        scheduledObs.clear();
+
+        m_mutex.unlock();
+        for (auto& ptr : scheduled) {
+            if (auto lock = ptr.lock()) {
+                run(lock);
+            }
         }
+        m_mutex.lock();
     }
 
-    m_mutex.lock();
-    scheduledObs.clear();
     m_mutex.unlock();
 }
 
@@ -96,19 +99,6 @@ std::shared_ptr<Observer> ObserverStack::top() {
 void ObserverStack::run(std::shared_ptr<Observer> ob) {
     m_mutex.lock();
 
-    // Avoid circular effects while also pruning
-    for (size_t i = 0; i < activeObs.size(); ++i) {
-        if (auto lock = activeObs[i].lock()) {
-            if (lock == ob) {
-                std::cout << "circular!\n";
-                return;
-            }
-        } else {
-            activeObs.erase(activeObs.begin() + i);
-            --i;
-        }
-    }
-
     activeObs.push_back(ob);
     ob->unreactAll();
 
@@ -123,6 +113,19 @@ void ObserverStack::run(std::shared_ptr<Observer> ob) {
 
 void ObserverStack::schedule(std::shared_ptr<Observer> ob) {
     std::lock_guard<std::mutex> lock(m_mutex);
+
+    // Avoid circular effects while also pruning
+    for (size_t i = 0; i < activeObs.size(); ++i) {
+        if (auto lock = activeObs[i].lock()) {
+            if (lock == ob) {
+                return;
+            }
+        } else {
+            activeObs.erase(activeObs.begin() + i);
+            --i;
+        }
+    }
+
     scheduledObs.push_back(ob);
 }
 
