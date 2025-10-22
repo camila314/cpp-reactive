@@ -9,6 +9,7 @@
 #include <functional>
 #include <memory>
 #include <type_traits>
+#include <mutex>
 
 namespace cppreactive {
     template <typename T>
