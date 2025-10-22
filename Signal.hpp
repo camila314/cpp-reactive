@@ -70,6 +70,7 @@ namespace cppreactive {
     static uint64_t s_signalCounter = 0;
     template <typename T>
     class Signal {
+     protected:
         Reactive<T> m_reactive;
         const uint64_t m_id = s_signalCounter++;
      public:
@@ -96,5 +97,21 @@ namespace cppreactive {
         }
 
         uint64_t id() const { return m_id; }
+    };
+
+    template <typename T>
+    class ComputedSignal : Signal<T> {
+        Observatory m_observatory;
+        std::function<T()> m_compute;
+     public:
+        ComputedSignal(decltype(m_compute) compute) : m_compute(compute) {
+            m_observatory.reactToChanges([this]() {
+                Signal<T>::operator*() = m_compute();
+            });
+        }
+
+        Reactive<T> const& operator*() {
+            return Signal<T>::operator*();
+        }
     };
 }

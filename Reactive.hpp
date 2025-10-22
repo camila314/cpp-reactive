@@ -157,13 +157,11 @@ namespace cppreactive {
 
             std::optional<ListenerIter> react(std::function<void(T const&)> fn) {
                 if (auto guard = m_weak->lock()) {
-                    std::cout << "we are so in\n";
                     std::lock_guard<std::mutex> lock(m_mutex);
                     auto lis = guard->react(fn);
                     m_listeners.insert(lis);
                     return lis;
                 }
-                std::cout << "we are so out\n";
                 return {};
             }
 
