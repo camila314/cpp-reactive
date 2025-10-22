@@ -3,6 +3,22 @@
 #include <Reactive.hpp>
 #include <functional>
 
+#if defined(_WIN32) && !defined(__CYGWIN__)
+    #ifdef CPP_REACTIVE_EXPORT
+        #define CPP_REACTIVE_DLL __declspec(dllexport)
+    #elif defined(CPP_REACTIVE_IMPORT)
+        #define CPP_REACTIVE_DLL __declspec(dllimport)
+    #else
+        #define CPP_REACTIVE_DLL
+    #endif
+#else
+    #ifdef CPP_REACTIVE_EXPORT
+        #define CPP_REACTIVE_DLL [[gnu::visibility("default")]]
+    #else
+        #define CPP_REACTIVE_DLL
+    #endif
+#endif
+
 namespace cppreactive {
     class Observer;
 
@@ -17,7 +33,7 @@ namespace cppreactive {
      * It is rare you will have to interact with this class yourself, as Observatory is the
      * recommended way of managing observers.
      */
-    class ObserverStack {
+    class CPP_REACTIVE_DLL ObserverStack {
         template <typename T>
         friend class Signal;
 
@@ -46,7 +62,7 @@ namespace cppreactive {
     /**
      * Scoped manager for observers. Allows you to create and destroy Observer instances. That's it!
      */
-    class Observatory {
+    class CPP_REACTIVE_DLL Observatory {
         std::mutex m_mutex;
         std::vector<std::shared_ptr<Observer>> m_observers;
      public:

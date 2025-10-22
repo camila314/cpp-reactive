@@ -1,3 +1,3 @@
 # cpp-reactive
-Short header-only library that gives you access to a reactive container
+This library implements some important reactive types in C++ such as Signals.
 # Requires c++20
