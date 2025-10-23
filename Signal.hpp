@@ -34,8 +34,8 @@ namespace cppreactive {
      * recommended way of managing observers.
      */
     class CPP_REACTIVE_DLL ObserverStack {
-        template <typename T>
-        friend class Signal;
+        template <typename R> requires requires(R r) { Reactive(r); }
+        friend class SignalBase;
 
         std::mutex m_mutex;
         std::vector<std::weak_ptr<Observer>> activeObs;
@@ -84,19 +84,20 @@ namespace cppreactive {
     };
 
     static uint64_t s_signalCounter = 0;
-    template <typename T>
-    class Signal {
+
+    template <typename R> requires requires(R r) { Reactive(r); }
+    class SignalBase {
      protected:
-        Reactive<T> m_reactive;
+        R m_reactive;
         const uint64_t m_id = s_signalCounter++;
      public:
 
-        Signal() : m_reactive() {}
-        Signal(T const& initial) : m_reactive(initial) {}
-        Signal(Signal const& other) : m_reactive(other.m_reactive) {}
-        Signal(Signal&& other) : m_reactive(std::move(other.m_reactive)), m_id(other.m_id) {}
+        SignalBase() : m_reactive() {}
+        SignalBase(R&& initial) : m_reactive(std::move(initial)) {}
+        SignalBase(SignalBase const& other) : m_reactive(other.m_reactive) {}
+        SignalBase(SignalBase&& other) : m_reactive(std::move(other.m_reactive)), m_id(other.m_id) {}
 
-        Reactive<T>& operator*() {
+        R& operator*() {
             if (auto top = ObserverStack::shared()->top()) {
                 if (!ObserverStack::observerSignalAdded(top, m_id)) {
                     auto ptr = m_reactive.react([top](auto) {
@@ -112,7 +113,19 @@ namespace cppreactive {
             return m_reactive;
         }
 
+        R* operator->() {
+            return &this->operator*();
+        }
+
         uint64_t id() const { return m_id; }
+    };
+
+    template <typename T>
+    class Signal : public SignalBase<Reactive<T>> {
+        using SignalBase<Reactive<T>>::SignalBase;
+
+        template <std::convertible_to<T> Q>
+        Signal(Q&& value) : SignalBase<Reactive<T>>(Reactive(value)) {}
     };
 
     template <typename T>

@@ -81,9 +81,9 @@ namespace cppreactive {
         class Session {
             std::unique_ptr<Weak> m_weak;
             T m_tempVal;
-            Session(std::unique_ptr<Weak>&& w) : m_weak(std::move(w)), m_tempVal(m_weak->m_reactive) {
-                std::lock_guard<std::mutex> lock(m_weak->m_reactive.m_mutex);
-                m_weak->m_reactive.m_contexts.insert(std::this_thread::get_id());
+            Session(std::unique_ptr<Weak>&& w) : m_weak(std::move(w)), m_tempVal(*m_weak->m_reactive) {
+                std::lock_guard<std::mutex> lock(m_weak->m_reactive->m_mutex);
+                m_weak->m_reactive->m_contexts.insert(std::this_thread::get_id());
             }
             friend class Reactive;
          public:
@@ -108,7 +108,7 @@ namespace cppreactive {
                     guard->m_contexts.erase(std::this_thread::get_id());
                     guard->m_mutex.unlock();
 
-                    guard->removeWeak(m_weak);
+                    guard->removeWeak(&*m_weak);
                     guard->set(m_tempVal);
                 }
             }
