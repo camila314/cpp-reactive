@@ -83,7 +83,7 @@ namespace cppreactive {
         void unreact(std::shared_ptr<Observer> ob);
     };
 
-    static uint64_t s_signalCounter = 0;
+    inline uint64_t s_signalCounter = 0;
 
     template <typename R> requires requires(R r) { Reactive(r); }
     class SignalBase {
