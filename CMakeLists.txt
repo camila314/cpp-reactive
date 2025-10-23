@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 
 project(cpp-reactive VERSION 1.0.0 LANGUAGES CXX)
 
-if (DEFINED CPP_REACTIVE_INTERFACE AND CPP_REACTIVE_INTERFACE))
+if (DEFINED CPP_REACTIVE_INTERFACE AND CPP_REACTIVE_INTERFACE)
 	add_library(cpp-reactive INTERFACE)
 	target_include_directories(cpp-reactive INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 	target_compile_features(cpp-reactive INTERFACE cxx_std_20)
