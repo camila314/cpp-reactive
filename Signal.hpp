@@ -34,7 +34,7 @@ namespace cppreactive {
      * recommended way of managing observers.
      */
     class CPP_REACTIVE_DLL ObserverStack {
-        template <typename R> requires requires(R r) { Reactive(r); }
+        template <typename R>
         friend class SignalBase;
 
         std::mutex m_mutex;
@@ -85,7 +85,7 @@ namespace cppreactive {
 
     inline uint64_t s_signalCounter = 0;
 
-    template <typename R> requires requires(R r) { Reactive(r); }
+    template <typename R>
     class SignalBase {
      protected:
         R m_reactive;
@@ -105,7 +105,9 @@ namespace cppreactive {
                     });
 
                     ObserverStack::observerAddSignal(top, m_id, [ptr, ref = m_reactive.ref()]() mutable {
-                        ref.unreact(ptr);
+                        if (auto guard = ref.parent_lock()) {
+                            guard->unreact(ptr);
+                        }
                     });
                 }
             }
@@ -121,11 +123,24 @@ namespace cppreactive {
     };
 
     template <typename T>
+    class RefSignal : public SignalBase<ReactiveRef<T>> {
+        using SignalBase<ReactiveRef<T>>::SignalBase;
+     public:
+        RefSignal(ReactiveRef<T>&& value) : SignalBase<ReactiveRef<T>>(std::move(value)) {}
+        RefSignal(Reactive<T>& value) : SignalBase<ReactiveRef<T>>(value.ref()) {}
+    };
+
+    template <typename T>
     class Signal : public SignalBase<Reactive<T>> {
         using SignalBase<Reactive<T>>::SignalBase;
+     public:
 
         template <std::convertible_to<T> Q>
         Signal(Q&& value) : SignalBase<Reactive<T>>(Reactive(value)) {}
+
+        RefSignal<T> ref() {
+            return RefSignal<T>(this->m_reactive.ref());
+        }
     };
 
     template <typename T>

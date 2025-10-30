@@ -202,6 +202,12 @@ namespace cppreactive {
                 return {};
             }
 
+            auto parent_lock() {
+                return m_weak->lock();
+            }
+
+            Ref& ref() { return *this; }
+
             ~Ref() {
                 if (!m_weak) return;
                 if (auto guard = m_weak->lock()) {
@@ -321,4 +327,7 @@ namespace cppreactive {
             return *this;
         }
     };
+
+    template <typename T>
+    using ReactiveRef = typename Reactive<T>::Ref;
 }
