@@ -91,7 +91,6 @@ namespace cppreactive {
         R m_reactive;
         const uint64_t m_id = s_signalCounter++;
      public:
-
         SignalBase() : m_reactive() {}
         SignalBase(R&& initial) : m_reactive(std::move(initial)) {}
         SignalBase(SignalBase const& other) : m_reactive(other.m_reactive) {}
@@ -148,7 +147,10 @@ namespace cppreactive {
         Observatory m_observatory;
         std::function<T()> m_compute;
      public:
-        ComputedSignal(decltype(m_compute) compute) : m_compute(compute) {
+        ComputedSignal(ComputedSignal const& comp) : ComputedSignal(comp.m_compute) {}
+
+        template <typename V> requires requires(V a) { {a()} -> std::same_as<T>; }
+        ComputedSignal(V && compute) : m_compute(std::forward<V>(compute)) {
             m_observatory.reactToChanges([this]() {
                 Signal<T>::operator*() = m_compute();
             });
@@ -157,5 +159,6 @@ namespace cppreactive {
         Reactive<T> const& operator*() {
             return Signal<T>::operator*();
         }
+
     };
 }

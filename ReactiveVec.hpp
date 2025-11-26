@@ -96,5 +96,7 @@ namespace cppreactive {
 
 	    template <std::convertible_to<std::vector<T>> Q>
 	    Signal(Q&& value) : SignalBase<ReactiveVec<T>>(ReactiveVec<T>(value)) {}
+
+	    bool operator==(const Signal&) const = default; 
 	};
 }

@@ -12,6 +12,16 @@
 #include <mutex>
 
 namespace cppreactive {
+
+    template <typename T>
+    auto unwrapReactive(T&& val) {
+        if constexpr ( requires(T a) { a.get(); } ) {
+            return val.get();
+        } else {
+            return val;
+        }
+    }
+
     template <typename T>
     class Reactive {
         /// Weak reference to Reactive class
@@ -326,6 +336,20 @@ namespace cppreactive {
             set(get() - 1);
             return *this;
         }
+
+        template <typename Q> T operator+(Q const& other) const { return get() + unwrapReactive(other); }
+        template <typename Q> T operator-(Q const& other) const { return get() - unwrapReactive(other); }
+        template <typename Q> T operator*(Q const& other) const { return get() * unwrapReactive(other); }
+        template <typename Q> T operator/(Q const& other) const { return get() / unwrapReactive(other); }
+        template <typename Q> T operator%(Q const& other) const { return get() % unwrapReactive(other); }
+        template <typename Q> int operator<=>(Q const& other) const { return get() <=> unwrapReactive(other); }
+
+        template <typename Q> bool operator!() const { return !get(); }
+        template <typename Q> T operator-() const { return -get(); }
+        template <typename Q> T operator+() const { return +get(); }
+        template <typename Q> T operator~() { return ~get(); }
+
+
     };
 
     template <typename T>
