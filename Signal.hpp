@@ -20,7 +20,7 @@
 #endif
 
 namespace cppreactive {
-    class Observer;
+    struct Observer;
 
     /**
      * Singleton to manage the stack of active and scheduled observers. Only accessed
