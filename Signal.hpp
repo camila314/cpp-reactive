@@ -87,6 +87,16 @@ namespace cppreactive {
 
     template <typename R>
     class SignalBase {
+        template <typename T>
+        T intoOptional(T const& value) {
+            if constexpr (std::is_same_v<T, std::optional<typename T::value_type>>) {
+                return value;
+            } else {
+                return std::optional<T>(value);
+            }
+        }
+
+
      protected:
         R m_reactive;
         const uint64_t m_id = s_signalCounter++;
@@ -99,15 +109,18 @@ namespace cppreactive {
         R& operator*() {
             if (auto top = ObserverStack::shared()->top()) {
                 if (!ObserverStack::observerSignalAdded(top, m_id)) {
-                    auto ptr = m_reactive.react([top](auto) {
+                    auto ptr = intoOptional(m_reactive.react([top](auto) {
                         ObserverStack::shared()->schedule(top);
-                    });
+                    }));
 
-                    ObserverStack::observerAddSignal(top, m_id, [ptr, ref = m_reactive.ref()]() mutable {
-                        if (auto guard = ref.parent_lock()) {
-                            guard->unreact(ptr);
-                        }
-                    });
+
+                    if (ptr) {
+                        ObserverStack::observerAddSignal(top, m_id, [ptr = ptr.value(), ref = m_reactive.ref()]() mutable {
+                            if (auto guard = ref.parent_lock()) {
+                                guard->unreact(ptr);
+                            }
+                        });
+                    }
                 }
             }
 
