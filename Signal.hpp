@@ -88,7 +88,7 @@ namespace cppreactive {
     template <typename R>
     class SignalBase {
         template <typename T>
-        T intoOptional(T const& value) {
+        auto intoOptional(T const& value) {
             if constexpr (std::is_same_v<T, std::optional<typename T::value_type>>) {
                 return value;
             } else {
