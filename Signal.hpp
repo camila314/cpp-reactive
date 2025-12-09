@@ -68,6 +68,11 @@ namespace cppreactive {
      public:
         Observatory() = default;
 
+        Observatory(Observatory&& other) {
+            std::lock_guard<std::mutex> lock(other.m_mutex);
+            m_observers = std::move(other.m_observers);
+        }
+
         template <typename F>
         std::shared_ptr<Observer> reactToChanges(F&& effect) {
             std::lock_guard<std::mutex> lock(m_mutex);
